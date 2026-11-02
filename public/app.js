@@ -28,7 +28,7 @@ A.ontimeupdate=()=>{$('#tc').textContent=fmt(A.currentTime);$('#td').textContent
 $('#sk').oninput=e=>{if(A.duration)A.currentTime=e.target.value/1000*A.duration};$('#vol').oninput=e=>A.volume=e.target.value/100;
 // ---- Аккаунт
 function account(){
-  if(S.me)return ov(`<h3>${esc(S.me.login||'@'+S.me.tg_username)}</h3><button class="primary" onclick="orders()">Мои заказы</button> <button onclick="go(async()=>{await api('auth/logout',{});location.reload()})">Выйти</button>`);
+  if(S.me)return ov(`<h3>${esc(S.me.login||'@'+S.me.tg_username)}</h3><button class="primary" onclick="go(async()=>{await api('auth/logout',{});location.reload()})">Выйти</button>`);
   ov(`<h3>Вход / регистрация</h3><label>Логин</label><input id="lg" autocomplete="username"><label>Пароль</label><input id="pw" type="password" autocomplete="current-password">
   <div style="display:flex;gap:8px;margin-bottom:18px"><button class="primary" onclick="auth('login')">Войти</button><button onclick="auth('register')">Регистрация</button></div><div id="tgw"></div>`);
   if(S.bot){const s=document.createElement('script');s.async=true;s.src='https://telegram.org/js/telegram-widget.js?22';s.dataset.telegramLogin=S.bot;s.dataset.size='large';s.dataset.radius='12';s.dataset.requestAccess='write';s.dataset.onauth='onTg(user)';$('#tgw').append(s)}
@@ -53,7 +53,7 @@ const myOrders=()=>S.me?orders():account();
 const checkout=()=>go(async()=>{if(!S.me){return account()}
   const r=await api('order',{items:S.cart,delivery:$('#dl').value});S.cart=[];saveCart();render();
   ov(`<h3>Заказ ${esc(r.code)}</h3><p>Сумма: <b>${r.total} ₽</b></p><p class="muted" style="white-space:pre-line;margin:14px 0">${esc(S.pay||'Реквизиты уточняйте у продюсера.')}</p><p>В комментарии к переводу укажите код <b>${esc(r.code)}</b>. После подтверждения оплаты файлы появятся в «Мои заказы» или придут в Telegram.</p><button class="primary" onclick="orders()">Мои заказы</button>`)});
-const orders=()=>go(async()=>{const os=await api('orders');ov(`<h3>Мои заказы</h3>${os.map(o=>`<div class="row" style="display:block"><b>${o.code}</b> · ${o.total} ₽ · <small>${o.status==='paid'?'оплачен':'ожидает оплаты'}</small>${o.order_items.map(i=>`<div>${esc(i.title)} ${i.license.toUpperCase()} ${i.url?`<a href="${i.url}" download>Скачать</a>`:''}</div>`).join('')}</div>`).join('')||'<p class="muted">Заказов нет</p>'}`)});
+const orders=()=>go(async()=>{const os=await api('orders');ov(`<h3>Мои заказы</h3>${os.map(o=>`<div class="row" style="display:block"><b>${o.code}</b> · ${o.total} ₽ · <small>${o.status==='paid'?'оплачен':o.status==='declined'?'оплата не получена':'ожидает оплаты'}</small>${o.order_items.map(i=>`<div>${esc(i.title)} ${i.license.toUpperCase()} ${i.url?`<a href="${i.url}" download>Скачать</a>`:''}</div>`).join('')}</div>`).join('')||'<p class="muted">Заказов нет</p>'}`)});
 // ---- Админка
 const T=['Загрузить бит','Лицензии','О продюсере','Каталог','Заказы'];
 function openAdmin(t=0){const v=$('#adminv');v.hidden=false;document.body.style.overflow='hidden';
@@ -78,5 +78,5 @@ const saveAbout=()=>go(async()=>{await api('admin/setting',{key:'about',value:{n
   links:v('a_l').split('\n').map(s=>s.split('|').map(x=>x.trim())).filter(x=>x[1]).map(x=>({t:x[0]||x[1],u:x[1]})),photo:(await up(fv('a_p')))||S.about.photo||''}});await init();toast('Сохранено')});
 const tCat=()=>go(async()=>{const bs=await api('admin/beats');$('#tab').innerHTML=bs.map(b=>`<div class="row"><span>${esc(b.title)} <small>${esc(b.genre)} · ${b.bpm}</small></span><span><button class="chip" onclick="togBeat(${b.id},${!b.active})">${b.active?'Скрыть':'Показать'}</button> <button class="chip" onclick="delBeat(${b.id})">Удалить</button></span></div>`).join('')||'<p class="muted">Пусто</p>'});
 const togBeat=(id,active)=>go(async()=>{await api('admin/beat',{id,active});await init();tCat()}),delBeat=id=>confirm('Удалить бит?')&&go(async()=>{await api('admin/beat?id='+id,null,'DELETE');await init();tCat()});
-const tOrd=()=>go(async()=>{const os=await api('admin/orders');$('#tab').innerHTML=os.map(o=>`<div class="row"><span>${o.code} · ${o.total} ₽ · ${esc(o.users?.login||'@'+o.users?.tg_username)} <small>${o.delivery} · ${o.status}</small></span>${o.status==='paid'?'':`<button class="chip" onclick="go(async()=>{await api('admin/paid',{id:${o.id}});tOrd()})">Подтвердить оплату</button>`}</div>`).join('')||'<p class="muted">Заказов нет</p>'});
+const tOrd=()=>go(async()=>{const os=await api('admin/orders');$('#tab').innerHTML=os.map(o=>`<div class="row"><span>${o.code} · ${o.total} ₽ · ${esc(o.users?.login||'@'+o.users?.tg_username)} <small>${o.delivery} · ${o.status}</small></span>${o.status==='paid'?'':`<button class="chip" onclick="go(async()=>{const r=await api('admin/paid',{id:${o.id}});toast(r.failed?.length?'Не отправлено: '+r.failed.join(', '):'Оплата подтверждена');init();tOrd()})">Подтвердить оплату</button>`}</div>`).join('')||'<p class="muted">Заказов нет</p>'});
 init();

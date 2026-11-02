@@ -1,4 +1,5 @@
 // Racks4L Beats API — Cloudflare Pages Functions + Supabase
+const ADM=env=>String(env.ADMIN_TELEGRAM_ID||'971616343');
 const J=(d,s=200,h={})=>new Response(JSON.stringify(d),{status:s,headers:{'content-type':'application/json',...h}});
 const err=(m,s=400)=>{throw Object.assign(new Error(m),{status:s})};
 const enc=new TextEncoder(),hex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
@@ -10,8 +11,37 @@ const db=(env,path,method='GET',body)=>fetch(`${env.SUPABASE_URL}/rest/v1/${path
 const st=(env,path,body)=>fetch(`${env.SUPABASE_URL}/storage/v1/${path}`,{method:'POST',headers:{apikey:env.SUPABASE_SERVICE_KEY,Authorization:'Bearer '+env.SUPABASE_SERVICE_KEY,'content-type':'application/json'},body:JSON.stringify(body||{})}).then(async r=>{const d=await r.json();if(!r.ok)err(d.message||'storage',500);return d});
 const link=async(env,file,sec)=>{const d=await st(env,`object/sign/masters/${file}`,{expiresIn:sec});return `${env.SUPABASE_URL}/storage/v1${d.signedURL}`};
 const tg=(env,method,body)=>fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/${method}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
-const isAdmin=(env,u)=>!!u&&((u.telegram_id&&u.telegram_id===String(env.ADMIN_TELEGRAM_ID))||(env.ADMIN_LOGIN&&u.login===env.ADMIN_LOGIN));
+const isAdmin=(env,u)=>!!u&&((u.telegram_id&&u.telegram_id===String(ADM(env)))||(env.ADMIN_LOGIN&&u.login===env.ADMIN_LOGIN));
 
+async function tgVerify(env,body){const {hash,...d}=body;const check=Object.keys(d).sort().map(k=>`${k}=${d[k]}`).join('\n');const key=await crypto.subtle.digest('SHA-256',enc.encode(env.BOT_TOKEN));if(hex(await hmacRaw(key,check))!==hash||Date.now()/1e3-d.auth_date>86400)err('Telegram-подпись неверна',401);return d}
+async function session(env,u){const exp=Date.now()+2592e6,sig=await hmac(env.SESSION_SECRET,u.id+'.'+exp);return {'set-cookie':`s=${u.id}.${exp}.${sig}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`}}
+async function me(req,env){const c=(req.headers.get('cookie')||'').match(/(?:^|; )s=([^;]+)/);if(!c)return null;const [id,exp,sig]=c[1].split('.');if(+exp<Date.now()||sig!==await hmac(env.SESSION_SECRET,id+'.'+exp))return null;const [u]=await db(env,`users?id=eq.${id}&select=id,login,telegram_id,tg_username`);if(u)u.admin=isAdmin(env,u);return u||null}
+
+async function sendFile(env,chat,file,name,caption){
+  const r=await fetch(await link(env,file,600));if(!r.ok)return false;
+  const fd=new FormData();fd.append('chat_id',chat);fd.append('caption',caption);fd.append('document',new Blob([await r.arrayBuffer()]),name);
+  return (await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendDocument`,{method:'POST',body:fd}).then(x=>x.json())).ok;
+}
+async function markPaid(env,id){
+  const [o]=await db(env,`orders?id=eq.${id}&select=*,users(telegram_id),order_items(beat_id,title,license,file)`);
+  if(!o)err('Заказ не найден',404);
+  if(o.status==='paid')return {code:o.code,already:true,failed:[]};
+  await db(env,`orders?id=eq.${id}`,'PATCH',{status:'paid',paid_at:new Date().toISOString()});
+  await db(env,`beats?id=in.(${o.order_items.map(i=>+i.beat_id).join(',')})`,'PATCH',{active:false});
+  const failed=[],chat=o.users?.telegram_id;
+  if(o.delivery==='telegram'){
+    if(!chat)failed.push('Telegram покупателя не привязан');
+    else{
+      await tg(env,'sendMessage',{chat_id:chat,text:`Заказ ${o.code} оплачен ✅ Отправляю файлы…`});
+      for(const i of o.order_items){
+        const ext=(i.file.match(/\.[A-Za-z0-9]+$/)||[''])[0],name=`${i.title} - ${i.license.toUpperCase()}${ext}`.replace(/[\\/:*?"<>|]/g,'_');
+        const ok=await sendFile(env,chat,i.file,name,`${i.title} · ${i.license.toUpperCase()}`).catch(()=>false);
+        if(!ok)failed.push(`${i.title} ${i.license.toUpperCase()}`);
+      }
+    }
+  }
+  return {code:o.code,failed};
+}
 async function tgVerify(env,body){const {hash,...d}=body;const check=Object.keys(d).sort().map(k=>`${k}=${d[k]}`).join('\n');const key=await crypto.subtle.digest('SHA-256',enc.encode(env.BOT_TOKEN));if(hex(await hmacRaw(key,check))!==hash||Date.now()/1e3-d.auth_date>86400)err('Telegram-подпись неверна',401);return d}
 async function session(env,u){const exp=Date.now()+2592e6,sig=await hmac(env.SESSION_SECRET,u.id+'.'+exp);return {'set-cookie':`s=${u.id}.${exp}.${sig}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`}}
 async function me(req,env){const c=(req.headers.get('cookie')||'').match(/(?:^|; )s=([^;]+)/);if(!c)return null;const [id,exp,sig]=c[1].split('.');if(+exp<Date.now()||sig!==await hmac(env.SESSION_SECRET,id+'.'+exp))return null;const [u]=await db(env,`users?id=eq.${id}&select=id,login,telegram_id,tg_username`);if(u)u.admin=isAdmin(env,u);return u||null}
@@ -38,9 +68,14 @@ export async function onRequest({request,env}){
       const q=body.callback_query;
       const msg=body.message;
       if(msg?.text?.startsWith('/start'))await tg(env,'sendMessage',{chat_id:msg.chat.id,text:`Racks4L Beats бот работает.\nВаш Telegram ID: ${msg.from.id}\nСюда приходят уведомления о заказах и ссылки на купленные файлы.`});
-      if(q&&String(q.from.id)===String(env.ADMIN_TELEGRAM_ID)){
+      if(q&&String(q.from.id)===String(ADM(env))){
         const [a,id]=q.data.split(':');
-        if(a==='ok'){const c=await markPaid(env,+id);await tg(env,'editMessageText',{chat_id:q.message.chat.id,message_id:q.message.message_id,text:`✅ ${c}: оплата подтверждена`})}
+        const ed=(text,kb)=>tg(env,'editMessageText',{chat_id:q.message.chat.id,message_id:q.message.message_id,text,reply_markup:{inline_keyboard:kb||[]}});
+        if(a==='ok'){const r=await markPaid(env,+id);await ed(r.already?`✅ ${r.code}: уже выдан`:`✅ ${r.code}: оплата подтверждена, бит снят с продажи`+(r.failed.length?`\n⚠️ Не отправлено: ${r.failed.join(', ')}`:'\nФайлы отправлены покупателю'))}
+        if(a==='no'){const [o]=await db(env,`orders?id=eq.${+id}&select=code,status,users(telegram_id)`);
+          if(o&&o.status!=='paid'){await db(env,`orders?id=eq.${+id}`,'PATCH',{status:'declined'});
+            await ed(`❌ ${o.code}: деньги не получены`,[[{text:'✅ Всё же поступили, отправить товар',callback_data:'ok:'+id}]]);
+            if(o.users?.telegram_id)await tg(env,'sendMessage',{chat_id:o.users.telegram_id,text:`По заказу ${o.code} оплата не поступила. Если вы оплатили — напишите продюсеру.`})}}
         await tg(env,'answerCallbackQuery',{callback_query_id:q.id});
       }
       return J({ok:true});
@@ -93,14 +128,14 @@ export async function onRequest({request,env}){
       const total=rows.reduce((a,r)=>a+r.price,0),code='R4L-'+rnd(3).toUpperCase();
       const [o]=await db(env,'orders','POST',{code,user_id:u.id,delivery,total});
       await db(env,'order_items','POST',rows.map(r=>({...r,order_id:o.id})));
-      if(env.BOT_TOKEN&&env.ADMIN_TELEGRAM_ID)await tg(env,'sendMessage',{chat_id:env.ADMIN_TELEGRAM_ID,
+      if(env.BOT_TOKEN&&ADM(env))await tg(env,'sendMessage',{chat_id:ADM(env),
         text:`🧾 Новый заказ ${code}\nПокупатель: ${u.login||'@'+u.tg_username}\nВыдача: ${delivery}\nСумма: ${total} ₽\n`+rows.map(r=>`• ${r.title} — ${r.license.toUpperCase()} (${r.price} ₽)`).join('\n'),
-        reply_markup:{inline_keyboard:[[{text:'✅ Деньги пришли, выдать',callback_data:'ok:'+o.id}]]}});
+        reply_markup:{inline_keyboard:[[{text:'✅ Деньги поступили, отправить товар',callback_data:'ok:'+o.id}],[{text:'❌ Деньги не получил',callback_data:'no:'+o.id}]]}});
       return J({code,total});
     }
     if(p==='orders'){
       const os=await db(env,`orders?user_id=eq.${u.id}&order=id.desc&select=*,order_items(title,license,price,file)`);
-      for(const o of os)for(const i of o.order_items){i.url=o.status==='paid'&&o.delivery==='site'?await link(env,i.file,3600):null;delete i.file}
+      for(const o of os)for(const i of o.order_items){i.url=o.status==='paid'?await link(env,i.file,3600):null;delete i.file}
       return J(os);
     }
     // ---- Админ
@@ -119,7 +154,7 @@ export async function onRequest({request,env}){
     if(p==='admin/beats')return J(await db(env,'beats?order=id.desc&select=id,title,genre,bpm,active'));
     if(p==='admin/setting'){if(!['about','licenses'].includes(body.key))err('key');return J(await db(env,'settings?on_conflict=key','POST',{key:body.key,value:body.value}))}
     if(p==='admin/orders')return J(await db(env,'orders?order=id.desc&limit=50&select=id,code,status,total,delivery,created_at,users(login,tg_username)'));
-    if(p==='admin/paid')return J({code:await markPaid(env,+body.id)});
+    if(p==='admin/paid')return J(await markPaid(env,+body.id));
     err('Не найдено',404);
   }catch(e){return J({error:e.message},e.status||500)}
 }
