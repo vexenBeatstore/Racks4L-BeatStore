@@ -1,0 +1,18 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Racks4L Beats</title><meta name="theme-color" content="#000">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23000'/><text x='16' y='23' font-size='20' text-anchor='middle' fill='%238fe3ff' font-family='Arial' font-weight='700'>R</text></svg>">
+<link rel="stylesheet" href="/style.css"></head><body>
+<header class="top"><a class="logo" href="#">RACKS<b>4L</b> <span>BEATS</span></a>
+<nav><a href="#about">Продюсер</a><a href="#licenses">Лицензии</a><a href="#catalog">Каталог</a></nav>
+<div class="acts"><button class="ghost" id="adm" hidden onclick="openAdmin()">Админ</button><button class="ghost" id="acc" onclick="account()">Войти</button><button class="cartbtn" onclick="cartView()">Корзина <i id="cc">0</i></button></div></header>
+<main><section id="about"></section><section id="licenses"></section>
+<section id="catalog"><h2>Каталог</h2><div id="grid" class="grid"></div></section></main>
+<footer>© Racks4L Beats</footer>
+<div id="pl" class="player" hidden><div class="pinfo"><img id="pc" alt=""><div><b id="pt">—</b><small id="pm"></small></div></div>
+<div class="pctl"><button onclick="step(-1)" aria-label="prev">⏮</button><button id="pp" class="pbtn" onclick="toggle()">▶</button><button onclick="step(1)" aria-label="next">⏭</button></div>
+<div class="pseek"><span id="tc">0:00</span><input id="sk" type="range" min="0" max="1000" value="0"><span id="td">0:00</span></div>
+<input id="vol" type="range" min="0" max="100" value="80" aria-label="volume"></div>
+<div id="ov" class="ov" hidden onclick="if(event.target===this)closeOv()"><div id="box" class="box"></div></div>
+<div id="adminv" class="adminv" hidden></div><div id="toast"></div>
+<script src="/app.js"></script></body></html>
