@@ -1,0 +1,31 @@
+PRAGMA foreign_keys = ON;
+CREATE TABLE IF NOT EXISTS users (
+ id TEXT PRIMARY KEY, login TEXT UNIQUE, password_hash TEXT, telegram_id TEXT UNIQUE,
+ telegram_username TEXT, role TEXT NOT NULL DEFAULT 'user', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS beats (
+ id TEXT PRIMARY KEY, title TEXT NOT NULL, producer TEXT NOT NULL DEFAULT 'Racks4L Beats',
+ genre TEXT NOT NULL DEFAULT 'Trap', bpm INTEGER NOT NULL DEFAULT 140, musical_key TEXT DEFAULT '',
+ cover_url TEXT DEFAULT '', preview_url TEXT DEFAULT '', mp3_url TEXT DEFAULT '', wav_url TEXT DEFAULT '',
+ stems_url TEXT DEFAULT '', price_mp3 INTEGER NOT NULL DEFAULT 1500, price_wav INTEGER NOT NULL DEFAULT 2500,
+ price_stems INTEGER NOT NULL DEFAULT 4000, active INTEGER NOT NULL DEFAULT 1,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS orders (
+ id TEXT PRIMARY KEY, user_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
+ total INTEGER NOT NULL, delivery TEXT NOT NULL DEFAULT 'site', telegram_username TEXT,
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, paid_at TEXT,
+ FOREIGN KEY(user_id) REFERENCES users(id)
+);
+CREATE TABLE IF NOT EXISTS order_items (
+ id TEXT PRIMARY KEY, order_id TEXT NOT NULL, beat_id TEXT NOT NULL, license TEXT NOT NULL,
+ price INTEGER NOT NULL, file_url TEXT DEFAULT '',
+ FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE,
+ FOREIGN KEY(beat_id) REFERENCES beats(id)
+);
+CREATE TABLE IF NOT EXISTS sessions (
+ token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL,
+ FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_beats_active ON beats(active);
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);

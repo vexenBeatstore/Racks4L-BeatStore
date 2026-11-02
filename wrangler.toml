@@ -1,0 +1,19 @@
+name = "racks4l-beats-api"
+main = "worker/index.js"
+compatibility_date = "2026-10-20"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "racks4l-beats"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+[vars]
+SITE_URL = "https://YOUR_SITE_DOMAIN"
+TELEGRAM_BOT_USERNAME = "YOUR_BOT_USERNAME"
+SUPABASE_URL = "https://YOUR_PROJECT.supabase.co"
+SUPABASE_BUCKET = "beats"
+
+# Set secrets with:
+# wrangler secret put JWT_SECRET
+# wrangler secret put TELEGRAM_BOT_TOKEN
+# wrangler secret put SUPABASE_SERVICE_ROLE_KEY
