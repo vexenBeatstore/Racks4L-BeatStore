@@ -1,5 +1,5 @@
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const S={me:null,beats:[],about:{},licenses:{},cart:JSON.parse(localStorage.r4l||'[]'),cur:null},LIC=['mp3','wav','stems'];
+const S={me:null,beats:[],about:{},licenses:{},cart:JSON.parse(localStorage.r4l||'[]'),cur:null,view:[],f:{q:'',g:'',s:'new'}},LIC=['mp3','wav','stems'];
 const U=p=>p?S.media+p:'',fmt=t=>isFinite(t)?Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0'):'0:00';
 const api=async(p,body,method)=>{const r=await fetch('/api/'+p,{method:method||(body?'POST':'GET'),headers:{'content-type':'application/json'},body:body&&JSON.stringify(body)});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Ошибка');return d};
 const toast=m=>{const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(t._);t._=setTimeout(()=>t.style.display='none',3200)};
@@ -12,16 +12,34 @@ function render(){
   $('#about').innerHTML=`<div class="ab">${a.photo?`<img src="${U(a.photo)}" alt="">`:''}<div><small>О ПРОДЮСЕРЕ</small><h1>${esc(a.name||'Racks4L')}</h1><p>${esc(a.text||'Описание продюсера появится здесь.')}</p>
   <div class="tags">${(a.genres||[]).map(g=>`<span>${esc(g)}</span>`).join('')}</div><div class="links">${(a.links||[]).map(l=>`<a href="${esc(l.u)}" target="_blank" rel="noopener">${esc(l.t)} ↗</a>`).join('')}</div></div></div>`;
   $('#licenses').innerHTML=`<h2>Лицензии</h2><div class="lg">${LIC.map(k=>{const l=L[k]||{};return `<div class="lc"><div class="im">${l.cover?`<img src="${U(l.cover)}" alt="" loading="lazy">`:''}</div><div class="t"><h3>${k.toUpperCase()}</h3><p>${esc(l.terms||'Условия лицензии будут указаны здесь.')}</p></div></div>`}).join('')}</div>`;
-  $('#grid').innerHTML=S.beats.map(b=>`<article class="beat ${S.cur===b.id?'on':''}" data-id="${b.id}"><button class="cover" onclick="play(${b.id})" aria-label="Play">${b.cover?`<img src="${U(b.cover)}" alt="" loading="lazy">`:''}<span class="pl"></span></button>
-  <h3>${esc(b.title)}</h3><p class="meta">${esc(b.genre)} · ${esc(b.musical_key)} · ${b.bpm} BPM</p><div class="lic">${LIC.filter(l=>b[l+'_price']>0).map(l=>`<button class="chip ${S.cart.some(c=>c.id==b.id&&c.l==l)?'on':''}" onclick="addCart(${b.id},'${l}')">${l.toUpperCase()} · ${b[l+'_price']} ₽</button>`).join('')||'<small>Недоступен</small>'}</div></article>`).join('')||'<p class="muted">Биты скоро появятся.</p>';
-  mark();
+  renderGenres();renderList();
 }
+const gl=b=>String(b.genre||'').split(/[,/]/).map(s=>s.trim()).filter(Boolean);
+const price=b=>Math.min(...LIC.map(l=>b[l+'_price']).filter(p=>p>0),Infinity);
+function hit(b,t){if(t==='bpm')return true;const r=t.match(/^(\d+)[-–](\d+)$/);if(r)return b.bpm>=+r[1]&&b.bpm<=+r[2];
+  return [b.title,b.genre,b.musical_key].join(' ').toLowerCase().includes(t)||(/^\d+$/.test(t)&&String(b.bpm).startsWith(t))}
+function calcView(){const f=S.f,toks=f.q.trim().toLowerCase().split(/\s+/).filter(Boolean);let l=S.beats.filter(b=>(!f.g||gl(b).some(g=>g.toLowerCase()===f.g.toLowerCase()))&&toks.every(t=>hit(b,t)));
+  const by={new:(a,b)=>b.id-a.id,old:(a,b)=>a.id-b.id,bpmA:(a,b)=>a.bpm-b.bpm||b.id-a.id,bpmD:(a,b)=>b.bpm-a.bpm||b.id-a.id,prA:(a,b)=>price(a)-price(b)||b.id-a.id,prD:(a,b)=>(isFinite(price(b))?price(b):-1)-(isFinite(price(a))?price(a):-1)||b.id-a.id,az:(a,b)=>String(a.title).localeCompare(b.title,'ru')};
+  return S.view=l.sort(by[f.s]||by.new)}
+function renderGenres(){const m=new Map();S.beats.forEach(b=>gl(b).forEach(g=>{const k=g.toLowerCase();if(!m.has(k))m.set(k,g)}));
+  if(S.f.g&&!m.has(S.f.g.toLowerCase()))S.f.g='';
+  $('#gf').innerHTML=m.size?[['','Все'],...[...m.values()].sort((a,b)=>a.localeCompare(b,'ru')).map(g=>[g,g])].map(([g,t])=>`<button class="chip ${S.f.g.toLowerCase()===g.toLowerCase()?'on':''}" data-g="${esc(g)}" onclick="setG(this.dataset.g)">${esc(t)}</button>`).join(''):''}
+const setG=g=>{S.f.g=g;renderGenres();renderList()};
+function renderList(){const l=calcView(),all=S.beats.length;
+  $('#cnt').textContent=all?(l.length===all?`Битов: ${all}`:`Найдено: ${l.length} из ${all}`):'';
+  $('#grid').innerHTML=l.map(b=>`<article class="beat ${S.cur===b.id?'on':''}" data-id="${b.id}"><button class="pbt" onclick="play(${b.id})" aria-label="Play" ${b.demo?'':'disabled'}></button>
+  <div class="bt"><h3>${esc(b.title)}</h3></div><div class="mt"><span class="bg">${esc(b.genre)}</span><span class="bk">${esc(b.musical_key)}</span><span class="bb">${b.bpm||''}${b.bpm?' BPM':''}</span></div>
+  <div class="lic">${LIC.filter(x=>b[x+'_price']>0).map(x=>`<button class="chip ${S.cart.some(c=>c.id==b.id&&c.l==x)?'on':''}" onclick="addCart(${b.id},'${x}')">${x.toUpperCase()} · ${b[x+'_price']} ₽</button>`).join('')||'<small>Недоступен</small>'}</div></article>`).join('')
+  ||(all?'<p class="muted">Ничего не найдено. <button class="chip" onclick="resetF()">Сбросить фильтры</button></p>':'<p class="muted">Биты скоро появятся.</p>');
+  mark()}
+function resetF(){S.f={q:'',g:'',s:S.f.s};$('#q').value='';renderGenres();renderList()}
+$('#q').oninput=e=>{S.f.q=e.target.value;renderList()};$('#so').onchange=e=>{S.f.s=e.target.value;renderList()};
 // ---- Плеер
 const A=new Audio();A.volume=.8;
 function play(id){const b=S.beats.find(x=>x.id===id);if(!b?.demo)return toast('Нет демо');
-  if(S.cur===id){return toggle()}S.cur=id;A.src=U(b.demo);A.play();$('#pl').hidden=false;$('#pt').textContent=b.title;$('#pm').textContent=`${b.genre} · ${b.musical_key} · ${b.bpm} BPM`;$('#pc').src=b.cover?U(b.cover):'';mark()}
+  if(S.cur===id){return toggle()}S.cur=id;A.src=U(b.demo);A.play();$('#pl').hidden=false;$('#pt').textContent=b.title;$('#pm').textContent=`${b.genre} · ${b.musical_key} · ${b.bpm} BPM`;mark()}
 const toggle=()=>A.paused?A.play():A.pause();
-function step(d){const l=S.beats.filter(b=>b.demo);if(!l.length)return;const i=l.findIndex(b=>b.id===S.cur);play(l[(i+d+l.length)%l.length].id);if(S.cur===l[(i+d+l.length)%l.length].id&&A.paused)A.play()}
+function step(d){const l=S.view.filter(b=>b.demo);if(!l.length)return;const i=l.findIndex(b=>b.id===S.cur),n=l[i<0?(d>0?0:l.length-1):(i+d+l.length)%l.length];if(n.id===S.cur){A.currentTime=0;A.play();return}play(n.id)}
 function mark(){document.querySelectorAll('.beat').forEach(e=>{e.classList.toggle('on',+e.dataset.id===S.cur);e.classList.toggle('playing',+e.dataset.id===S.cur&&!A.paused)});$('#pp').textContent=A.paused?'▶':'❚❚'}
 A.onplay=A.onpause=mark;A.onended=()=>step(1);
 A.ontimeupdate=()=>{$('#tc').textContent=fmt(A.currentTime);$('#td').textContent=fmt(A.duration);if(A.duration)$('#sk').value=A.currentTime/A.duration*1000};
@@ -37,7 +55,7 @@ const auth=m=>go(async()=>{await api('auth/'+m,{login:$('#lg').value,password:$(
 window.onTg=u=>go(async()=>{await api('auth/telegram',u);await done()});
 async function done(){closeOv();await init();toast('Готово')}
 // ---- Корзина / заказ
-function addCart(id,l){const i=S.cart.findIndex(c=>c.id==id&&c.l==l);i<0?S.cart.push({id,l}):S.cart.splice(i,1);saveCart();render()}
+function addCart(id,l){const i=S.cart.findIndex(c=>c.id==id&&c.l==l);i<0?S.cart.push({id,l}):S.cart.splice(i,1);saveCart();renderList()}
 function saveCart(){localStorage.r4l=JSON.stringify(S.cart);head()}
 function cartView(){
   const it=S.cart.map(c=>{const b=S.beats.find(x=>x.id==c.id);return b&&b[c.l+'_price']>0?{...c,b,p:b[c.l+'_price']}:null}).filter(Boolean),t=it.reduce((a,i)=>a+i.p,0);
@@ -63,12 +81,12 @@ async function up(f,bucket='media'){if(!f)return null;const s=await api('admin/s
   const r=await fetch(s.url,{method:'PUT',body:fd});if(!r.ok)throw new Error('Не загрузилось: '+f.name);return s.path}
 const inp=(id,l,t='text',x='')=>`<label>${l}</label><input id="${id}" type="${t}" ${x}>`,fl=(id,l,a='')=>`<label>${l}</label><input id="${id}" type="file" ${a}>`,v=id=>$('#'+id).value,fv=id=>$('#'+id).files[0];
 function tUpload(){$('#tab').innerHTML=`<div class="part"><h4>1 · Данные бита</h4>${inp('b_t','Название')}<div class="g3"><div>${inp('b_g','Жанр')}</div><div>${inp('b_k','Ключ (Am, F#m…)')}</div><div>${inp('b_b','BPM','number')}</div></div></div>
-  <div class="part"><h4>2 · Файлы</h4>${fl('f_c','Обложка','accept="image/*"')}${fl('f_d','Demo (mp3)','accept="audio/*"')}${fl('f_m','MP3 (для продажи)','accept="audio/*"')}${fl('f_w','WAV','accept="audio/*"')}${fl('f_s','STEMS (zip)','accept=".zip"')}</div>
+  <div class="part"><h4>2 · Файлы</h4>${fl('f_d','Demo (mp3)','accept="audio/*"')}${fl('f_m','MP3 (для продажи)','accept="audio/*"')}${fl('f_w','WAV','accept="audio/*"')}${fl('f_s','STEMS (zip)','accept=".zip"')}</div>
   <div class="part"><h4>3 · Цены, ₽</h4><div class="g3"><div>${inp('p_m','MP3','number','value=500')}</div><div>${inp('p_w','WAV','number','value=1000')}</div><div>${inp('p_s','STEMS','number','value=2000')}</div></div></div>
   <button class="primary" id="sv" onclick="saveBeat()">Опубликовать бит</button>`}
 const saveBeat=()=>go(async()=>{const b=$('#sv');b.disabled=true;try{if(!v('b_t'))throw Error('Введите название');b.textContent='Загрузка файлов…';
-  const [cover,demo,mp3,wav,stems]=await Promise.all([up(fv('f_c')),up(fv('f_d')),up(fv('f_m'),'masters'),up(fv('f_w'),'masters'),up(fv('f_s'),'masters')]);
-  await api('admin/beat',{title:v('b_t'),genre:v('b_g'),musical_key:v('b_k'),bpm:+v('b_b')||0,cover,demo,mp3_file:mp3,wav_file:wav,stems_file:stems,mp3_price:+v('p_m')||0,wav_price:+v('p_w')||0,stems_price:+v('p_s')||0});
+  const [demo,mp3,wav,stems]=await Promise.all([up(fv('f_d')),up(fv('f_m'),'masters'),up(fv('f_w'),'masters'),up(fv('f_s'),'masters')]);
+  await api('admin/beat',{title:v('b_t'),genre:v('b_g'),musical_key:v('b_k'),bpm:+v('b_b')||0,demo,mp3_file:mp3,wav_file:wav,stems_file:stems,mp3_price:+v('p_m')||0,wav_price:+v('p_w')||0,stems_price:+v('p_s')||0});
   toast('Бит опубликован');openAdmin(3);init()}finally{b.disabled=false;b.textContent='Опубликовать бит'}});
 function tLic(){const L=S.licenses;$('#tab').innerHTML=LIC.map(k=>`<div class="part"><h4>${k.toUpperCase()}</h4><label>Условия</label><textarea id="t_${k}">${esc(L[k]?.terms||'')}</textarea>${fl('c_'+k,'Обложка (оставьте пустым, чтобы не менять)','accept="image/*"')}</div>`).join('')+`<button class="primary" onclick="saveLic()">Сохранить</button>`}
 const saveLic=()=>go(async()=>{const o={};for(const k of LIC)o[k]={terms:v('t_'+k),cover:(await up(fv('c_'+k)))||S.licenses[k]?.cover||''};await api('admin/setting',{key:'licenses',value:o});await init();toast('Сохранено')});
