@@ -50,3 +50,5 @@ footer{text-align:center;color:var(--mu);padding:40px;font-size:13px}
 @media(max-width:820px){nav{display:none}.ab{grid-template-columns:1fr}.ab img{max-width:240px}.g3,.g2{grid-template-columns:1fr}
 .player{grid-template-columns:1fr auto;gap:8px 12px}.pseek{grid-column:1/-1;order:3}#vol{display:none}.grid{grid-template-columns:repeat(2,1fr);gap:14px}.top{padding:10px 14px}.ghost{padding:8px 12px}}
 @media(max-width:420px){.grid{grid-template-columns:1fr}.logo span{display:none}}
+
+.acts{flex-wrap:wrap;justify-content:flex-end}@media(max-width:820px){.acts button{padding:7px 12px;font-size:13px}}

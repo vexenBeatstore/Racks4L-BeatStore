@@ -42,8 +42,14 @@ function saveCart(){localStorage.r4l=JSON.stringify(S.cart);head()}
 function cartView(){
   const it=S.cart.map(c=>{const b=S.beats.find(x=>x.id==c.id);return b&&b[c.l+'_price']>0?{...c,b,p:b[c.l+'_price']}:null}).filter(Boolean),t=it.reduce((a,i)=>a+i.p,0);
   ov(`<h3>Корзина</h3>${it.map(i=>`<div class="row"><span>${esc(i.b.title)} <small>${i.l.toUpperCase()}</small></span><span>${i.p} ₽ <button class="chip" onclick="addCart(${i.b.id},'${i.l}');cartView()">✕</button></span></div>`).join('')||'<p class="muted">Пусто</p>'}
-  ${it.length?`<div class="row"><b>Итого</b><b>${t} ₽</b></div><label>Получение</label><select id="dl"><option value="site">На сайте (раздел «Мои заказы»)</option><option value="telegram" ${S.me?.telegram_id?'':'disabled'}>В Telegram${S.me?.telegram_id?'':' (нужен вход через Telegram)'}</option></select><button class="primary" style="width:100%" onclick="checkout()">Оформить заказ</button>`:''}`);
+  ${it.length?`<div class="row"><b>Итого</b><b>${t} ₽</b></div><label>Получение</label><select id="dl" onchange="dlChange()"><option value="site">На сайте (раздел «Мои заказы»)</option><option value="telegram">В Telegram${S.me?.telegram_id?' ✓ привязан':''}</option></select><div id="tgl"></div><button class="primary" style="width:100%" onclick="checkout()">Оформить заказ</button>`:''}`);
 }
+function tgWidget(sel,cb){if(!S.bot){$(sel).textContent='Бот не настроен';return}const s=document.createElement('script');s.async=true;s.src='https://telegram.org/js/telegram-widget.js?22';Object.assign(s.dataset,{telegramLogin:S.bot,size:'large',radius:'12',requestAccess:'write',onauth:cb});$(sel).append(s)}
+function dlChange(){const t=$('#tgl');t.innerHTML='';if($('#dl').value!=='telegram'||S.me?.telegram_id)return;
+  if(!S.me){t.innerHTML='<p class="muted" style="margin-bottom:10px">Сначала войдите в аккаунт, затем привяжите Telegram.</p>';return}
+  t.innerHTML='<p class="muted" style="margin-bottom:10px">Привяжите Telegram, чтобы файлы пришли в чат с ботом:</p><div id="tgw2"></div>';tgWidget('#tgw2','onTgLink(user)')}
+window.onTgLink=u=>go(async()=>{await api('auth/link-telegram',u);await init();cartView();$('#dl').value='telegram';toast('Telegram привязан')});
+const myOrders=()=>S.me?orders():account();
 const checkout=()=>go(async()=>{if(!S.me){return account()}
   const r=await api('order',{items:S.cart,delivery:$('#dl').value});S.cart=[];saveCart();render();
   ov(`<h3>Заказ ${esc(r.code)}</h3><p>Сумма: <b>${r.total} ₽</b></p><p class="muted" style="white-space:pre-line;margin:14px 0">${esc(S.pay||'Реквизиты уточняйте у продюсера.')}</p><p>В комментарии к переводу укажите код <b>${esc(r.code)}</b>. После подтверждения оплаты файлы появятся в «Мои заказы» или придут в Telegram.</p><button class="primary" onclick="orders()">Мои заказы</button>`)});

@@ -12,6 +12,7 @@ const link=async(env,file,sec)=>{const d=await st(env,`object/sign/masters/${fil
 const tg=(env,method,body)=>fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/${method}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
 const isAdmin=(env,u)=>!!u&&((u.telegram_id&&u.telegram_id===String(env.ADMIN_TELEGRAM_ID))||(env.ADMIN_LOGIN&&u.login===env.ADMIN_LOGIN));
 
+async function tgVerify(env,body){const {hash,...d}=body;const check=Object.keys(d).sort().map(k=>`${k}=${d[k]}`).join('\n');const key=await crypto.subtle.digest('SHA-256',enc.encode(env.BOT_TOKEN));if(hex(await hmacRaw(key,check))!==hash||Date.now()/1e3-d.auth_date>86400)err('Telegram-подпись неверна',401);return d}
 async function session(env,u){const exp=Date.now()+2592e6,sig=await hmac(env.SESSION_SECRET,u.id+'.'+exp);return {'set-cookie':`s=${u.id}.${exp}.${sig}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`}}
 async function me(req,env){const c=(req.headers.get('cookie')||'').match(/(?:^|; )s=([^;]+)/);if(!c)return null;const [id,exp,sig]=c[1].split('.');if(+exp<Date.now()||sig!==await hmac(env.SESSION_SECRET,id+'.'+exp))return null;const [u]=await db(env,`users?id=eq.${id}&select=id,login,telegram_id,tg_username`);if(u)u.admin=isAdmin(env,u);return u||null}
 
@@ -35,6 +36,8 @@ export async function onRequest({request,env}){
     if(p==='tg'){
       if(request.headers.get('x-telegram-bot-api-secret-token')!==env.TG_SECRET)err('no',403);
       const q=body.callback_query;
+      const msg=body.message;
+      if(msg?.text?.startsWith('/start'))await tg(env,'sendMessage',{chat_id:msg.chat.id,text:`Racks4L Beats бот работает.\nВаш Telegram ID: ${msg.from.id}\nСюда приходят уведомления о заказах и ссылки на купленные файлы.`});
       if(q&&String(q.from.id)===String(env.ADMIN_TELEGRAM_ID)){
         const [a,id]=q.data.split(':');
         if(a==='ok'){const c=await markPaid(env,+id);await tg(env,'editMessageText',{chat_id:q.message.chat.id,message_id:q.message.message_id,text:`✅ ${c}: оплата подтверждена`})}
@@ -69,10 +72,7 @@ export async function onRequest({request,env}){
       return J({ok:true},200,await session(env,user));
     }
     if(p==='auth/telegram'){
-      const {hash,...d}=body;
-      const check=Object.keys(d).sort().map(k=>`${k}=${d[k]}`).join('\n');
-      const key=await crypto.subtle.digest('SHA-256',enc.encode(env.BOT_TOKEN));
-      if(hex(await hmacRaw(key,check))!==hash||Date.now()/1e3-d.auth_date>86400)err('Telegram-подпись неверна',401);
+      const d=await tgVerify(env,body);
       let [user]=await db(env,`users?telegram_id=eq.${d.id}`);
       if(!user)[user]=await db(env,'users','POST',{telegram_id:String(d.id),tg_username:d.username||d.first_name||''});
       return J({ok:true},200,await session(env,user));
@@ -80,6 +80,7 @@ export async function onRequest({request,env}){
     if(p==='auth/logout')return J({ok:true},200,{'set-cookie':'s=; Path=/; Max-Age=0'});
     // ---- Покупатель
     if(!u)err('Нужен вход',401);
+    if(p==='auth/link-telegram'){const d=await tgVerify(env,body);const [x]=await db(env,`users?telegram_id=eq.${d.id}&select=id`);if(x&&x.id!==u.id)err('Этот Telegram уже привязан к другому аккаунту');await db(env,`users?id=eq.${u.id}`,'PATCH',{telegram_id:String(d.id),tg_username:d.username||d.first_name||''});return J({ok:true})}
     if(p==='order'){
       const items=(body.items||[]).slice(0,50),ids=[...new Set(items.map(i=>+i.id))].filter(Boolean);
       if(!ids.length)err('Корзина пуста');
