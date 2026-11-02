@@ -5,7 +5,7 @@ const api=async(p,body,method)=>{const r=await fetch('/api/'+p,{method:method||(
 const toast=m=>{const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(t._);t._=setTimeout(()=>t.style.display='none',3200)};
 const ov=h=>{$('#box').className='box';$('#box').innerHTML=h;$('#ov').hidden=false},closeOv=()=>$('#ov').hidden=true;
 const go=async f=>{try{await f()}catch(e){toast(e.message)}};
-async function init(){const d=await api('init');Object.assign(S,d);head();render()}
+async function init(){const d=await api('init');Object.assign(S,d);fixCart();render()}
 function head(){$('#acc').textContent=S.me?(S.me.login||'@'+S.me.tg_username):'Войти';$('#adm').hidden=!S.me?.admin;$('#cc').textContent=S.cart.length}
 function render(){
   const a=S.about,L=S.licenses;
@@ -29,7 +29,7 @@ function renderList(){const l=calcView(),all=S.beats.length;
   $('#cnt').textContent=all?(l.length===all?`Битов: ${all}`:`Найдено: ${l.length} из ${all}`):'';
   $('#grid').innerHTML=l.map(b=>`<article class="beat ${S.cur===b.id?'on':''}" data-id="${b.id}"><button class="pbt" onclick="play(${b.id})" aria-label="Play" ${b.demo?'':'disabled'}></button>
   <div class="bt"><h3>${esc(b.title)}</h3></div><div class="mt"><span class="bg">${esc(b.genre)}</span><span class="bk">${esc(b.musical_key)}</span><span class="bb">${b.bpm||''}${b.bpm?' BPM':''}</span></div>
-  <div class="lic">${LIC.filter(x=>b[x+'_price']>0).map(x=>`<button class="chip ${S.cart.some(c=>c.id==b.id&&c.l==x)?'on':''}" onclick="addCart(${b.id},'${x}')">${x.toUpperCase()} · ${b[x+'_price']} ₽</button>`).join('')||'<small>Недоступен</small>'}</div></article>`).join('')
+  <div class="lic">${avail(b).length?(inCart(b.id)?`<button class="chip on" onclick="cartView()">✓ В корзине</button>`:`<button class="chip add" onclick="addCart(${b.id})">В корзину</button>`):'<small>Недоступен</small>'}</div></article>`).join('')
   ||(all?'<p class="muted">Ничего не найдено. <button class="chip" onclick="resetF()">Сбросить фильтры</button></p>':'<p class="muted">Биты скоро появятся.</p>');
   mark()}
 function resetF(){S.f={q:'',g:'',s:S.f.s};$('#q').value='';renderGenres();renderList()}
@@ -55,12 +55,17 @@ const auth=m=>go(async()=>{await api('auth/'+m,{login:$('#lg').value,password:$(
 window.onTg=u=>go(async()=>{await api('auth/telegram',u);await done()});
 async function done(){closeOv();await init();toast('Готово')}
 // ---- Корзина / заказ
-function addCart(id,l){const i=S.cart.findIndex(c=>c.id==id&&c.l==l);i<0?S.cart.push({id,l}):S.cart.splice(i,1);saveCart();renderList()}
+const avail=b=>LIC.filter(x=>b[x+'_price']>0),inCart=id=>S.cart.some(c=>c.id==id);
+function fixCart(){const seen=new Set();S.cart=S.cart.map(c=>{const b=S.beats.find(x=>x.id==c.id);if(!b||seen.has(b.id))return null;seen.add(b.id);const a=avail(b);return a.length?{id:b.id,l:a.includes(c.l)?c.l:a[0]}:null}).filter(Boolean);saveCart()}
+function addCart(id){const b=S.beats.find(x=>x.id==id);if(!b||inCart(id))return;const a=avail(b);if(!a.length)return toast('Недоступен');S.cart.push({id,l:a[0]});saveCart();renderList();toast('Добавлено в корзину')}
+const rmCart=id=>{S.cart=S.cart.filter(c=>c.id!=id);saveCart();renderList();cartView()},setLic=(id,l)=>{const c=S.cart.find(x=>x.id==id);if(c){c.l=l;saveCart();cartView()}};
 function saveCart(){localStorage.r4l=JSON.stringify(S.cart);head()}
-function cartView(){
+function cartView(){const keep=$('#dl')?.value;
   const it=S.cart.map(c=>{const b=S.beats.find(x=>x.id==c.id);return b&&b[c.l+'_price']>0?{...c,b,p:b[c.l+'_price']}:null}).filter(Boolean),t=it.reduce((a,i)=>a+i.p,0);
-  ov(`<h3>Корзина</h3>${it.map(i=>`<div class="row"><span>${esc(i.b.title)} <small>${i.l.toUpperCase()}</small></span><span>${i.p} ₽ <button class="chip" onclick="addCart(${i.b.id},'${i.l}');cartView()">✕</button></span></div>`).join('')||'<p class="muted">Пусто</p>'}
+  ov(`<h3>Корзина</h3>${it.map(i=>`<div class="ci"><div class="ch"><span><b>${esc(i.b.title)}</b><small>${[i.b.genre,i.b.musical_key,i.b.bpm?i.b.bpm+' BPM':''].filter(Boolean).map(esc).join(' · ')}</small></span><span class="pr">${i.p} ₽ <button class="chip" onclick="rmCart(${i.b.id})" aria-label="Убрать из корзины">✕</button></span></div>
+  <div class="lic">${avail(i.b).map(x=>`<button class="chip ${x===i.l?'on':''}" onclick="setLic(${i.b.id},'${x}')">${x.toUpperCase()} · ${i.b[x+'_price']} ₽</button>`).join('')}</div></div>`).join('')||'<p class="muted">Пусто</p>'}
   ${it.length?`<div class="row"><b>Итого</b><b>${t} ₽</b></div><label>Получение</label><select id="dl" onchange="dlChange()"><option value="site">На сайте (раздел «Мои заказы»)</option><option value="telegram">В Telegram${S.me?.telegram_id?' ✓ привязан':''}</option></select><div id="tgl"></div><button class="primary" style="width:100%" onclick="checkout()">Оформить заказ</button>`:''}`);
+  if(keep&&$('#dl')){$('#dl').value=keep;dlChange()}
 }
 function tgWidget(sel,cb){if(!S.bot){$(sel).textContent='Бот не настроен';return}const s=document.createElement('script');s.async=true;s.src='https://telegram.org/js/telegram-widget.js?22';Object.assign(s.dataset,{telegramLogin:S.bot,size:'large',radius:'12',requestAccess:'write',onauth:cb});$(sel).append(s)}
 function dlChange(){const t=$('#tgl');t.innerHTML='';if($('#dl').value!=='telegram'||S.me?.telegram_id)return;

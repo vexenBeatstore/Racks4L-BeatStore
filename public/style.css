@@ -70,3 +70,8 @@ footer{text-align:center;color:var(--mu);padding:40px;font-size:13px}
 .logo{display:flex;align-items:center;gap:10px}.logo img{height:34px;width:auto;display:block;filter:drop-shadow(0 0 10px rgba(143,227,255,.25))}
 .logo span{font-weight:300;letter-spacing:.18em;font-size:13px;color:var(--mu)}
 @media(max-width:820px){.logo img{height:28px}}
+
+/* ---- Корзина: выбор лицензии */
+.ci{padding:14px 0;border-bottom:1px solid var(--g3)}.ci .ch{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px}
+.ci .ch>span:first-child{min-width:0}.ci b{display:block;overflow:hidden;text-overflow:ellipsis}.ci small{display:block}.ci .pr{white-space:nowrap;display:flex;align-items:center;gap:8px}
+.chip.add{background:#fff;color:#000;border-color:#fff;font-weight:600}.chip.add:hover{background:var(--ice);border-color:var(--ice);color:#000}
