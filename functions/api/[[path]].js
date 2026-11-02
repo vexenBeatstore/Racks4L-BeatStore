@@ -42,21 +42,6 @@ async function markPaid(env,id){
   }
   return {code:o.code,failed};
 }
-async function tgVerify(env,body){const {hash,...d}=body;const check=Object.keys(d).sort().map(k=>`${k}=${d[k]}`).join('\n');const key=await crypto.subtle.digest('SHA-256',enc.encode(env.BOT_TOKEN));if(hex(await hmacRaw(key,check))!==hash||Date.now()/1e3-d.auth_date>86400)err('Telegram-подпись неверна',401);return d}
-async function session(env,u){const exp=Date.now()+2592e6,sig=await hmac(env.SESSION_SECRET,u.id+'.'+exp);return {'set-cookie':`s=${u.id}.${exp}.${sig}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`}}
-async function me(req,env){const c=(req.headers.get('cookie')||'').match(/(?:^|; )s=([^;]+)/);if(!c)return null;const [id,exp,sig]=c[1].split('.');if(+exp<Date.now()||sig!==await hmac(env.SESSION_SECRET,id+'.'+exp))return null;const [u]=await db(env,`users?id=eq.${id}&select=id,login,telegram_id,tg_username`);if(u)u.admin=isAdmin(env,u);return u||null}
-
-async function markPaid(env,id){
-  const [o]=await db(env,`orders?id=eq.${id}&select=*,users(telegram_id),order_items(title,license,file)`);
-  if(!o)err('Заказ не найден',404);
-  if(o.status!=='paid')await db(env,`orders?id=eq.${id}`,'PATCH',{status:'paid',paid_at:new Date().toISOString()});
-  const chat=o.users?.telegram_id;
-  if(o.delivery==='telegram'&&chat){
-    const lines=await Promise.all(o.order_items.map(async i=>`• ${i.title} (${i.license.toUpperCase()}): ${await link(env,i.file,604800)}`));
-    await tg(env,'sendMessage',{chat_id:chat,text:`Заказ ${o.code} оплачен. Ссылки на файлы (действуют 7 дней):\n\n`+lines.join('\n')});
-  }
-  return o.code;
-}
 
 export async function onRequest({request,env}){
   const url=new URL(request.url),p=url.pathname.replace(/^\/api\//,'').replace(/\/$/,''),m=request.method;
