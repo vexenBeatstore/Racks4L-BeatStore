@@ -70,7 +70,7 @@ export async function onRequest({request,env}){
     if(p==='init'){
       const [beats,sets]=await Promise.all([db(env,'beats?active=eq.true&order=id.desc'),db(env,'settings?select=*')]);
       const s=Object.fromEntries(sets.map(x=>[x.key,x.value]));
-      return J({me:u,bot:env.BOT_USERNAME||'',pay:env.PAY_DETAILS||'',media:`${env.SUPABASE_URL}/storage/v1/object/public/media/`,about:s.about||{},licenses:s.licenses||{},
+      return J({me:u,bot:env.BOT_USERNAME||'',bot_id:String(env.BOT_TOKEN||'').split(':')[0],pay:env.PAY_DETAILS||'',media:`${env.SUPABASE_URL}/storage/v1/object/public/media/`,about:s.about||{},licenses:s.licenses||{},
         beats:beats.map(b=>({id:b.id,title:b.title,genre:b.genre,musical_key:b.musical_key,bpm:b.bpm,cover:b.cover,demo:b.demo,
           mp3_price:b.mp3_file?b.mp3_price:0,wav_price:b.wav_file?b.wav_price:0,stems_price:b.stems_file?b.stems_price:0}))});
     }
