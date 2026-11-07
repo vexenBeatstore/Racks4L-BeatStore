@@ -10,7 +10,7 @@ function head(){$('#acc span').textContent=S.me?(S.me.login||'@'+S.me.tg_usernam
 function render(){
   const a=S.about,L=S.licenses;
   $('#about').innerHTML=`<div class="ab">${a.photo?`<img src="${U(a.photo)}" alt="">`:''}<div><small>О ПРОДЮСЕРЕ</small><h1>${esc(a.name||'Racks4L')}</h1><p>${esc(a.text||'Описание продюсера появится здесь.')}</p>
-  <div class="tags">${(a.genres||[]).map(g=>`<span>${esc(g)}</span>`).join('')}</div><div class="links">${(a.links||[]).map(l=>`<a href="${esc(l.u)}" target="_blank" rel="noopener">${esc(l.t)} ↗</a>`).join('')}</div></div></div>`;
+  <div class="tags">${(a.genres||[]).map(g=>`<span>${esc(g)}</span>`).join('')}</div><div class="links">${(a.links||[]).map(l=>`<a href="${esc(l.u)}" target="_blank" rel="noopener">${esc(l.t)} ↗</a>`).join('')}</div></div></div>${socHtml(a.social)}`;
   $('#licenses').innerHTML=`<h2>Лицензии</h2><div class="lg">${LIC.map(k=>{const l=L[k]||{};return `<div class="lc"><div class="im">${l.cover?`<img src="${U(l.cover)}" alt="" loading="lazy">`:''}</div><div class="t"><h3>${k.toUpperCase()}</h3><p>${esc(l.terms||'Условия лицензии будут указаны здесь.')}</p></div></div>`}).join('')}</div>`;
   renderGenres();renderList();
 }
@@ -34,6 +34,22 @@ function renderList(){const l=calcView(),all=S.beats.length;
   mark()}
 function resetF(){S.f={q:'',g:'',s:S.f.s};$('#q').value='';renderGenres();renderList()}
 $('#q').oninput=e=>{S.f.q=e.target.value;renderList()};$('#so').onchange=e=>{S.f.s=e.target.value;renderList()};
+// ---- Основные ссылки (иконки в стиле сайта: линия, цвета палитры)
+const IC={tg:'<path d="M22 2 11 13"/><path d="M22 2l-7 20-4-9-9-4z"/>',ig:'<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/>',
+ yt:'<path d="M21.6 7.2a2.5 2.5 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.5 2.5 0 0 0 2.4 7.2C2 8.8 2 12 2 12s0 3.2.4 4.8a2.5 2.5 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.5 2.5 0 0 0 1.8-1.8c.4-1.6.4-4.8.4-4.8s0-3.2-.4-4.8z"/><path d="M10 15V9l5 3z"/>',
+ vk:'<rect x="2.5" y="2.5" width="19" height="19" rx="5.5"/><path d="M5.6 9l2.4 6.5L10.4 9"/><path d="M13.4 9v6.5M18 9l-4.6 3.6 4.6 3.9"/>',ml:'<rect x="2.5" y="4.5" width="19" height="15" rx="3"/><path d="m3.5 7 8.5 6 8.5-6"/>'};
+const ico=k=>`<svg class="si" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k]}</svg>`;
+const SOC=[{t:'Мои группы и каналы',d:'Новые биты, превью и анонсы выходят здесь — подписывайтесь, чтобы не пропустить.',i:[['tgc','tg','Telegram-канал','https://t.me/ваш_канал'],['ig','ig','Instagram','https://instagram.com/ваш_ник'],['yt','yt','YouTube','https://youtube.com/@ваш_канал'],['vk','vk','VK','https://vk.com/ваша_группа']]},
+ {t:'Связь со мной',d:'Заказать бит или индивидуальную работу, обсудить сотрудничество.',i:[['tgm','tg','Telegram — личные сообщения','https://t.me/ваш_ник'],['ml','ml','Почта','mail@example.com']]}];
+function socUrl(k,raw){let s=String(raw||'').trim();if(!s)return '';
+  if(k==='ml'){s=s.replace(/^mailto:/i,'');return /^[^\s@]+@[^\s@]+$/.test(s)?'mailto:'+s:''}
+  if(/^https?:\/\//i.test(s))return s;const h={tgc:'https://t.me/',tgm:'https://t.me/',ig:'https://instagram.com/',yt:'https://youtube.com/',vk:'https://vk.com/'}[k];
+  if(h&&/^@?[\w.]+$/.test(s))return h+(k==='yt'?(s[0]==='@'?s:'@'+s):s.replace(/^@/,''));return 'https://'+s.replace(/^\/+/,'')}
+function socTxt(k,u){if(k==='ml')return u.replace(/^mailto:/,'');const p=u.replace(/^https?:\/\/(www\.)?/i,'').replace(/[?#].*$/,'').replace(/\/+$/,''),l=p.split('/').pop();
+  return ['tgc','tgm','ig'].includes(k)&&l&&l[0]!=='+'?'@'+l.replace(/^@/,''):p}
+function socHtml(s){s=s||{};const bl=SOC.map((g,n)=>{const it=g.i.map(([k,ic,l])=>{const u=socUrl(k,s[k]);return u?`<a class="sl" href="${esc(u)}" ${u.startsWith('mailto:')?'':'target="_blank" rel="noopener"'}><span class="sc">${ico(ic)}</span><span class="st"><b>${l}</b><small>${esc(socTxt(k,u))}</small></span><i class="sa">↗\uFE0E</i></a>`:''}).join('');
+  return it?`<div class="sb${n?'':' g'}"><h3>${g.t}</h3><p>${g.d}</p><div class="sg">${it}</div></div>`:''}).join('');return bl?`<div class="soc">${bl}</div>`:''}
+const socAdm=s=>`<small style="display:block;margin:18px 0 12px">Вставьте ссылку или @ник. Пустое поле — этот пункт на сайте не показывается.</small>`+SOC.map(g=>`<div class="part"><h4>${g.t}</h4><small style="display:block;margin-bottom:6px">${g.d}</small>${g.i.map(([k,ic,l,ph])=>`<label class="sal">${ico(ic)}${l}</label><input id="s_${k}" type="text" placeholder="${esc(ph)}" value="${esc((s||{})[k]||'')}" autocomplete="off">`).join('')}</div>`).join('');
 // ---- Плеер
 const A=new Audio();A.volume=.8;
 function play(id){const b=S.beats.find(x=>x.id===id);if(!b?.demo)return toast('Нет демо');
@@ -102,10 +118,10 @@ const saveBeat=()=>go(async()=>{const b=$('#sv');b.disabled=true;try{if(!v('b_t'
   toast('Бит опубликован');openAdmin(3);init()}finally{b.disabled=false;b.textContent='Опубликовать бит'}});
 function tLic(){const L=S.licenses;$('#tab').innerHTML=LIC.map(k=>`<div class="part"><h4>${k.toUpperCase()}</h4><label>Условия</label><textarea id="t_${k}">${esc(L[k]?.terms||'')}</textarea>${fl('c_'+k,'Обложка (оставьте пустым, чтобы не менять)','accept="image/*"')}</div>`).join('')+`<button class="primary" onclick="saveLic()">Сохранить</button>`}
 const saveLic=()=>go(async()=>{const o={};for(const k of LIC)o[k]={terms:v('t_'+k),cover:(await up(fv('c_'+k)))||S.licenses[k]?.cover||''};await api('admin/setting',{key:'licenses',value:o});await init();toast('Сохранено')});
-function tAbout(){const a=S.about;$('#tab').innerHTML=`${inp('a_n','Имя / псевдоним',  'text',`value="${esc(a.name||'')}"`)}<label>Описание</label><textarea id="a_t">${esc(a.text||'')}</textarea>${inp('a_g','Жанры (через запятую)','text',`value="${esc((a.genres||[]).join(', '))}"`)}
-  <label>Ссылки (по строке: Название | https://…)</label><textarea id="a_l">${esc((a.links||[]).map(l=>l.t+' | '+l.u).join('\n'))}</textarea>${fl('a_p','Фото (пусто — не менять)','accept="image/*"')}<button class="primary" onclick="saveAbout()">Сохранить</button>`}
+function tAbout(){const a=S.about;$('#tab').innerHTML=`${inp('a_n','Имя / псевдоним',  'text',`value="${esc(a.name||'')}"`)}<label>Описание</label><textarea id="a_t">${esc(a.text||'')}</textarea>${inp('a_g','Жанры (через запятую)','text',`value="${esc((a.genres||[]).join(', '))}"`)}${socAdm(a.social)}
+  <label>Другие ссылки (по строке: Название | https://…)</label><textarea id="a_l">${esc((a.links||[]).map(l=>l.t+' | '+l.u).join('\n'))}</textarea>${fl('a_p','Фото (пусто — не менять)','accept="image/*"')}<button class="primary" onclick="saveAbout()">Сохранить</button>`}
 const saveAbout=()=>go(async()=>{await api('admin/setting',{key:'about',value:{name:v('a_n'),text:v('a_t'),genres:v('a_g').split(',').map(s=>s.trim()).filter(Boolean),
-  links:v('a_l').split('\n').map(s=>s.split('|').map(x=>x.trim())).filter(x=>x[1]).map(x=>({t:x[0]||x[1],u:x[1]})),photo:(await up(fv('a_p')))||S.about.photo||''}});await init();toast('Сохранено')});
+  social:Object.fromEntries(SOC.flatMap(g=>g.i).map(([k])=>[k,v('s_'+k).trim()])),links:v('a_l').split('\n').map(s=>s.split('|').map(x=>x.trim())).filter(x=>x[1]).map(x=>({t:x[0]||x[1],u:x[1]})),photo:(await up(fv('a_p')))||S.about.photo||''}});await init();toast('Сохранено')});
 const tCat=()=>go(async()=>{const bs=await api('admin/beats');$('#tab').innerHTML=bs.map(b=>`<div class="row"><span>${esc(b.title)} <small>${esc(b.genre)} · ${b.bpm}</small></span><span><button class="chip" onclick="togBeat(${b.id},${!b.active})">${b.active?'Скрыть':'Показать'}</button> <button class="chip" onclick="delBeat(${b.id})">Удалить</button></span></div>`).join('')||'<p class="muted">Пусто</p>'});
 const togBeat=(id,active)=>go(async()=>{await api('admin/beat',{id,active});await init();tCat()}),delBeat=id=>confirm('Удалить бит?')&&go(async()=>{await api('admin/beat?id='+id,null,'DELETE');await init();tCat()});
 const tOrd=()=>go(async()=>{const os=await api('admin/orders');$('#tab').innerHTML=os.map(o=>`<div class="row"><span>${o.code} · ${o.total} ₽ · ${esc(o.users?.login||'@'+o.users?.tg_username)} <small>${o.delivery} · ${o.status}</small></span>${o.status==='paid'?'':`<button class="chip" onclick="go(async()=>{const r=await api('admin/paid',{id:${o.id}});toast(r.failed?.length?'Не отправлено: '+r.failed.join(', '):'Оплата подтверждена');init();tOrd()})">Подтвердить оплату</button>`}</div>`).join('')||'<p class="muted">Заказов нет</p>'});
